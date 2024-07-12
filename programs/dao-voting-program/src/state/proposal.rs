@@ -219,7 +219,7 @@ pub enum ProposalStatus {
 
 
 /// Enum representing the type of vote
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Copy, Eq)]
 pub enum VoteType {
     Yes,
     No,
