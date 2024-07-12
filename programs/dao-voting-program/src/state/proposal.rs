@@ -34,7 +34,7 @@ pub struct Proposal {
 
 impl Proposal {
     // Total size of the Proposal account in bytes
-    pub const LEN: usize = 8 + 32 + 72 + ENUM_L * 2 + U8_L * 2 + 3 * U64_L + U8_L;
+    pub const LEN: usize = 8 + 32 + 72 + ENUM_LENGTH * 2 + U8_LENGTH * 2 + 3 * U64_LENGTH + U8_LENGTH;
 
     /// Initializes a new Proposal
     ///

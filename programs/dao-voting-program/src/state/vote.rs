@@ -17,7 +17,7 @@ pub struct VoteState {
 impl VoteState {
     // Constant representing the total size of the VoteState account in bytes
     // 8 (discriminator) + PUBKEY_L (public key length) + U64_L (u64 length) + U8_L (u8 length)
-    pub const LEN: usize = 8 + PUBKEY_L + U64_L + U8_L;
+    pub const LEN: usize = 8 + PUBKEY_LENGTH + U64_LENGTH + U8_LENGTH;
 
     // Initializes a new VoteState account
     pub fn init(

@@ -35,14 +35,14 @@ pub struct DaoSetup {
 
     // Bump seed for the token mint PDA
     pub mint_bump: u8,
-    
+
     // Bump seed for the treasury account PDA
     pub treasury_bump: u8
 }
 
 impl DaoSetup {
     /// Total size of the account in bytes
-    pub const LEN: usize = 8 + 6 * U64_L + 4 * U8_L;
+    pub const LEN: usize = 8 + 6 * U64_LENGTH + 4 * U8_LENGTH;
 
     /// Initializes a new DaoConfig instance with the provided parameters
     ///

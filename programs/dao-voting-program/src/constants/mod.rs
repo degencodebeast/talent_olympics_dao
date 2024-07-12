@@ -1,7 +1,9 @@
-pub const PUBKEY_L: usize = 32;
-pub const ENUM_L: usize = 1;
-pub const U64_L: usize = 8;
-pub const U16_L: usize = 2;
-pub const BOOL_L: usize = 1;
-pub const OPTION_L: usize = 1;
-pub const U8_L: usize = 1;
+pub const PUBKEY_LENGTH: usize = 32;
+pub const ENUM_LENGTH: usize = 1;
+pub const U8_LENGTH: usize = 1;
+pub const U16_LENGTH: usize = 2;
+pub const U32_LENGTH: usize = 4;
+pub const U64_LENGTH: usize = 8;
+pub const U128_LENGTH: usize = 16;
+pub const BOOL_LENGTH: usize = 1;
+pub const OPTION_LENGTH: usize = 1;
