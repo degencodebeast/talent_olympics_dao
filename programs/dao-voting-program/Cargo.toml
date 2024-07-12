@@ -24,6 +24,6 @@ anchor-spl= "0.29.0"
 # anchor-spl = { git = "https://github.com/coral-xyz/anchor.git" }
 
 getrandom = { version = "0.2.9", features = ["custom"] }
-solana-program = "=1.14.17"
+solana-program = "=1.16.17"
 winnow="=0.4.1"
 toml_datetime="=0.6.1"

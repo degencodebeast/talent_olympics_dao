@@ -28,13 +28,35 @@ pub struct Proposal {
     // Slot at which the proposal expires
     pub expiry: u64,
 
+    // The total number of 'yes' votes for the proposal
+    pub yes_votes: u64,
+
+    // The total number of 'no' votes for the proposal
+    pub no_votes: u64,
+
+    // The total number of 'abstain' votes for the proposal
+    pub abstain_votes: u64,
+
     // Bump seed for the proposal's PDA
     pub bump: u8,
 }
-
+// Discriminator: 8 bytes
+// id: u64 = 8 bytes
+// name: String (max 32 characters) = 4 bytes (for length) + 32 bytes = 36 bytes
+// gist: String (max 72 characters) = 4 bytes (for length) + 72 bytes = 76 bytes
+// proposal: ProposalType (enum) = 1 byte (for discriminator) + 8 bytes (for largest variant) = 9 bytes
+// result: ProposalStatus (enum) = 1 byte
+// quorum: u64 = 8 bytes
+// votes: u64 = 8 bytes
+// expiry: u64 = 8 bytes
+// yes_votes: u64 = 8 bytes
+// no_votes: u64 = 8 bytes
+// abstain_votes: u64 = 8 bytes
+// bump: u8 = 1 byte
 impl Proposal {
     // Total size of the Proposal account in bytes
-    pub const LEN: usize = 8 + 32 + 72 + ENUM_LENGTH * 2 + U8_LENGTH * 2 + 3 * U64_LENGTH + U8_LENGTH;
+    //pub const LEN: usize = 8 + 32 + 72 + ENUM_LENGTH * 2 + U8_LENGTH * 2 + 7 * U64_LENGTH + U8_LENGTH;
+    pub const LEN: usize = 187;
 
     /// Initializes a new Proposal
     ///
@@ -70,6 +92,9 @@ impl Proposal {
         self.result = ProposalStatus::Open;
         self.quorum = quorum;
         self.votes = 0;
+        self.yes_votes = 0;
+        self.no_votes = 0;
+        self.abstain_votes = 0;
         self.bump = bump;
         self.expiry = Clock::get()?.slot.checked_add(expiry).ok_or(DaoError::Overflow)?;
         Ok(())
@@ -133,8 +158,14 @@ impl Proposal {
     /// # Errors
     ///
     /// Returns an error if adding votes results in an overflow
-    pub fn add_vote(&mut self, amount: u64) -> Result<()> {
+  
+    pub fn add_vote(&mut self, amount: u64, vote_type: VoteType) -> Result<()> {
         self.votes = self.votes.checked_add(amount).ok_or(DaoError::Overflow)?;
+        match vote_type {
+            VoteType::Yes => self.yes_votes = self.yes_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
+            VoteType::No => self.no_votes = self.no_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
+            VoteType::Abstain => self.abstain_votes = self.abstain_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
+        }
         self.try_finalize();
         Ok(())
     }
@@ -148,9 +179,25 @@ impl Proposal {
     /// # Errors
     ///
     /// Returns an error if removing votes results in an underflow
-    pub fn remove_vote(&mut self, amount: u64) -> Result<()> {
+    pub fn remove_vote(&mut self, amount: u64, vote_type: VoteType) -> Result<()> {
         self.votes = self.votes.checked_sub(amount).ok_or(DaoError::Underflow)?;
+        match vote_type {
+            VoteType::Yes => self.yes_votes = self.yes_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
+            VoteType::No => self.no_votes = self.no_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
+            VoteType::Abstain => self.abstain_votes = self.abstain_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
+        }
         Ok(())
+    }
+
+    pub fn get_results(&self) -> ProposalResults {
+        ProposalResults {
+            yes_votes: self.yes_votes,
+            no_votes: self.no_votes,
+            abstain_votes: self.abstain_votes,
+            status: self.result,
+            total_votes: self.votes,
+            quorum: self.quorum,
+        }
     }
 }
 
@@ -168,4 +215,24 @@ pub enum ProposalStatus {
     Open,      // The proposal is active and accepting votes
     Succeeded, // The proposal has passed (met quorum and not expired)
     Failed     // The proposal has failed (didn't meet quorum or expired)
+}
+
+
+/// Enum representing the type of vote
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
+pub enum VoteType {
+    Yes,
+    No,
+    Abstain
+}
+
+/// Struct representing the results of a proposal
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct ProposalResults {
+    pub yes_votes: u64,
+    pub no_votes: u64,
+    pub abstain_votes: u64,
+    pub status: ProposalStatus,
+    pub total_votes: u64,
+    pub quorum: u64,
 }
