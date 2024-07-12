@@ -30,7 +30,7 @@ pub enum DaoError {
     InvalidExpiry,
     #[msg("Proposal closed")]
     ProposalClosed,
-    #[msg("You can't vote 0!")]
+    #[msg("You can't vote with 0!")]
     InvalidVoteAmount,
     #[msg("Invalid proposal status")]
     InvalidProposalStatus,
