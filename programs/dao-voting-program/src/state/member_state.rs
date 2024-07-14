@@ -19,13 +19,22 @@ pub struct MemberState {
 }
 
 impl MemberState {
-    pub const LEN: usize = 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 1;
+    pub const LEN: usize = PUBKEY_LENGTH +    // address: Pubkey
+    U64_LENGTH +       // reward_points: u64
+    U64_LENGTH +       // total_votes_cast: u64
+    U64_LENGTH +       // proposals_created: u64
+    U64_LENGTH +       // successful_proposals: u64
+    U64_LENGTH +       // join_date: i64 (i64 has the same size as u64)
+    U64_LENGTH +       // reputation_score: u64
+    U64_LENGTH +       // base_voting_points: u64
+    U64_LENGTH +       // bonus_voting_points: u64
+    U64_LENGTH +       // proposal_creation_points: u64
+    U64_LENGTH +       // proposal_success_points: u64
+    U64_LENGTH +       // forfeited_points: u64
+    U8_LENGTH +        // bump: u8
+    8; // Discriminator (added by Anchor)
 
-    pub fn init(
-        &mut self,
-        address: Pubkey,
-        bump: u8,
-    ) -> Result<()> {
+    pub fn init(&mut self, address: Pubkey, bump: u8) -> Result<()> {
         self.address = address;
         self.reward_points = 0;
         self.total_votes_cast = 0;
@@ -43,30 +52,52 @@ impl MemberState {
     }
 
     pub fn add_vote_points(&mut self, base_points: u64) -> Result<()> {
-        self.base_voting_points = self.base_voting_points.checked_add(base_points).ok_or(DaoError::Overflow)?;
-        self.total_votes_cast = self.total_votes_cast.checked_add(1).ok_or(DaoError::Overflow)?;
+        self.base_voting_points = self
+            .base_voting_points
+            .checked_add(base_points)
+            .ok_or(DaoError::Overflow)?;
+        self.total_votes_cast = self
+            .total_votes_cast
+            .checked_add(1)
+            .ok_or(DaoError::Overflow)?;
         self.update_reward_points()
     }
 
     pub fn add_vote_bonus(&mut self, bonus_points: u64) -> Result<()> {
-        self.bonus_voting_points = self.bonus_voting_points.checked_add(bonus_points).ok_or(DaoError::Overflow)?;
+        self.bonus_voting_points = self
+            .bonus_voting_points
+            .checked_add(bonus_points)
+            .ok_or(DaoError::Overflow)?;
         self.update_reward_points()
     }
 
     pub fn add_proposal_points(&mut self, points: u64) -> Result<()> {
-        self.proposal_creation_points = self.proposal_creation_points.checked_add(points).ok_or(DaoError::Overflow)?;
-        self.proposals_created = self.proposals_created.checked_add(1).ok_or(DaoError::Overflow)?;
+        self.proposal_creation_points = self
+            .proposal_creation_points
+            .checked_add(points)
+            .ok_or(DaoError::Overflow)?;
+        self.proposals_created = self
+            .proposals_created
+            .checked_add(1)
+            .ok_or(DaoError::Overflow)?;
         self.update_reward_points()
     }
 
     pub fn add_proposal_success_points(&mut self, points: u64) -> Result<()> {
-        self.proposal_success_points = self.proposal_success_points.checked_add(points).ok_or(DaoError::Overflow)?;
-        self.successful_proposals = self.successful_proposals.checked_add(1).ok_or(DaoError::Overflow)?;
+        self.proposal_success_points = self
+            .proposal_success_points
+            .checked_add(points)
+            .ok_or(DaoError::Overflow)?;
+        self.successful_proposals = self
+            .successful_proposals
+            .checked_add(1)
+            .ok_or(DaoError::Overflow)?;
         self.update_reward_points()
     }
 
     pub fn update_reward_points(&mut self) -> Result<()> {
-        self.reward_points = self.base_voting_points
+        self.reward_points = self
+            .base_voting_points
             .checked_add(self.bonus_voting_points)
             .and_then(|sum| sum.checked_add(self.proposal_creation_points))
             .and_then(|sum| sum.checked_add(self.proposal_success_points))
@@ -79,7 +110,9 @@ impl MemberState {
         self.base_voting_points = self.base_voting_points.saturating_sub(points);
         let actual_deduction = old_points - self.base_voting_points;
         if actual_deduction < points {
-            self.forfeited_points = self.forfeited_points.saturating_add(points - actual_deduction);
+            self.forfeited_points = self
+                .forfeited_points
+                .saturating_add(points - actual_deduction);
         }
         self.update_reward_points()
     }
@@ -109,7 +142,6 @@ impl MemberState {
             forfeited_points: self.forfeited_points,
         }
     }
-  
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

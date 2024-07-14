@@ -18,6 +18,8 @@ default = []
 [dependencies]
 anchor-lang = { version = "0.28.0", features = ["init-if-needed"] }
 anchor-spl= "0.28.0"
+#ahash = "=0.7.6"
+ahash = "=0.8.6"  # or another version known to work
 
 
 # anchor-lang = { git = "https://github.com/coral-xyz/anchor.git", features = ["init-if-needed"] }

@@ -28,17 +28,22 @@ pub struct StakeState {
 
 impl StakeState {
     // Constant representing the total size of the StakeState account in bytes
-    // 8 (discriminator) + PUBKEY_L (public key length) + 3 * U64_LENGTH (for amount, accounts, updated)
-    // + 3 * U8_LENGTH (for vault_bump, auth_bump, state_bump)
-    pub const LEN: usize = 8 + PUBKEY_LENGTH + 3 * U64_LENGTH + 3 * U8_LENGTH;
+    pub const LEN: usize = 8 +                // Discriminator (added by Anchor)
+    PUBKEY_LENGTH +    // owner: Pubkey
+    U64_LENGTH +       // amount: u64
+    U64_LENGTH +       // accounts: u64
+    U64_LENGTH +       // updated: u64
+    U8_LENGTH +        // vault_bump: u8
+    U8_LENGTH +        // auth_bump: u8
+    U8_LENGTH; // state_bump: u8
 
     // Initializes a new StakeState account
     pub fn init(
-        &mut self,  
+        &mut self,
         owner: Pubkey,
         state_bump: u8,
         vault_bump: u8,
-        auth_bump: u8
+        auth_bump: u8,
     ) -> Result<()> {
         self.owner = owner;
         self.amount = 0;
@@ -50,19 +55,13 @@ impl StakeState {
     }
 
     // Increases the staked amount
-    pub fn stake(
-        &mut self,
-        amount: u64
-    ) -> Result<()> {
+    pub fn stake(&mut self, amount: u64) -> Result<()> {
         self.amount = self.amount.checked_add(amount).ok_or(DaoError::Overflow)?;
         self.update()
     }
 
     // Decreases the staked amount, with additional checks
-    pub fn unstake(
-        &mut self,
-        amount: u64
-    ) -> Result<()> {
+    pub fn unstake(&mut self, amount: u64) -> Result<()> {
         self.check_accounts()?;
         self.check_slot()?; // Don't allow staking and unstaking in the same slot
         self.amount = self.amount.checked_sub(amount).ok_or(DaoError::Underflow)?;
@@ -91,7 +90,7 @@ impl StakeState {
     pub fn check_slot(&mut self) -> Result<()> {
         require!(self.updated < Clock::get()?.slot, DaoError::InvalidSlot);
         Ok(())
-    }    
+    }
 
     // Ensures that the user doesn't have any open accounts before unstaking
     pub fn check_accounts(&mut self) -> Result<()> {

@@ -16,13 +16,16 @@ pub struct VoteState {
     pub vote_type: VoteType,
 
     // Bump seed for the vote state's Program Derived Address (PDA)
-    pub bump: u8
+    pub bump: u8,
 }
 
 impl VoteState {
-    // Constant representing the total size of the VoteState account in bytes
-    // 8 (discriminator) + PUBKEY_L (public key length) + U64_L (u64 length) + U8_L (u8 length)
-    pub const LEN: usize = 8 + PUBKEY_LENGTH + U64_LENGTH + U8_LENGTH + 1 + 1;
+    /// Total size of the VoteState account in bytes
+    pub const LEN: usize = 8 +                // Discriminator (added by Anchor)
+        PUBKEY_LENGTH +    // owner: Pubkey
+        U64_LENGTH +       // amount: u64
+        ENUM_LENGTH +      // vote_type: VoteType (simple enum, 1 byte)
+        U8_LENGTH; // bump: u8
 
     // Initializes a new VoteState account
     pub fn init(

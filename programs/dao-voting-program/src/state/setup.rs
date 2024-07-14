@@ -37,12 +37,24 @@ pub struct DaoSetup {
     pub mint_bump: u8,
 
     // Bump seed for the treasury account PDA
-    pub treasury_bump: u8
+    pub treasury_bump: u8,
 }
 
 impl DaoSetup {
     /// Total size of the account in bytes
-    pub const LEN: usize = 8 + 6 * U64_LENGTH + 4 * U8_LENGTH;
+    pub const LEN: usize = 8 +                // Discriminator (added by Anchor)
+        U64_LENGTH +       // seed: u64
+        U64_LENGTH +       // issue_price: u64
+        U64_LENGTH +       // issue_amount: u64
+        U64_LENGTH +       // proposal_fee: u64
+        U64_LENGTH +       // max_supply: u64
+        U64_LENGTH +       // min_quorum: u64
+        U64_LENGTH +       // max_expiry: u64
+        U64_LENGTH +       // proposal_count: u64
+        U8_LENGTH +        // auth_bump: u8
+        U8_LENGTH +        // config_bump: u8
+        U8_LENGTH +        // mint_bump: u8
+        U8_LENGTH; // treasury_bump: u8
 
     /// Initializes a new DaoConfig instance with the provided parameters
     ///
@@ -71,7 +83,7 @@ impl DaoSetup {
         auth_bump: u8,
         config_bump: u8,
         mint_bump: u8,
-        treasury_bump: u8        
+        treasury_bump: u8,
     ) -> Result<()> {
         self.seed = seed;
         self.issue_price = issue_price;
@@ -98,7 +110,10 @@ impl DaoSetup {
     ///
     /// Returns an error if the proposal count overflows or if the ID doesn't match the new count
     pub fn add_proposal(&mut self, id: u64) -> Result<()> {
-        self.proposal_count = self.proposal_count.checked_add(1).ok_or(DaoError::Overflow)?;
+        self.proposal_count = self
+            .proposal_count
+            .checked_add(1)
+            .ok_or(DaoError::Overflow)?;
         require!(self.proposal_count == id, DaoError::InvalidProposalSeed);
         Ok(())
     }
