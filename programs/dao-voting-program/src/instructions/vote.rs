@@ -1,6 +1,9 @@
-use anchor_lang::{prelude::*, system_program::Transfer};
-
-use crate::{state::{setup::DaoSetup, Proposal, StakeState, VoteState, VoteType}, errors::DaoError};
+use anchor_lang::prelude::*;
+use crate::{
+    state::{setup::DaoSetup, Proposal, StakeState, VoteState, MemberState, VoteType},
+    errors::DaoError,
+    constants::*,
+};
 
 #[derive(Accounts)]
 pub struct Vote<'info> {
@@ -27,6 +30,12 @@ pub struct Vote<'info> {
     )]
     vote: Account<'info, VoteState>,
     #[account(
+        mut,
+        seeds=[b"member", config.key().as_ref(), owner.key().as_ref()],
+        bump = member_state.bump,
+    )]
+    member_state: Account<'info, MemberState>,
+    #[account(
         seeds=[b"config", config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump
     )]
@@ -43,7 +52,7 @@ impl<'info> Vote<'info> {
     ) -> Result<()> {
         // Check if proposal is open
         self.proposal.is_open()?;
-        // Check that proposal hasn't expired
+        // Check proposal hasn't expired
         self.proposal.check_expiry()?;
         // Ensure vote amount > 0
         require!(amount > 0, DaoError::InvalidVoteAmount);
@@ -59,6 +68,14 @@ impl<'info> Vote<'info> {
             amount,
             vote_type,
             bump
-        )
+        )?;
+
+        // Award base voting points
+        self.member_state.add_vote_points(BASE_VOTE_POINTS)?;
+
+        // Increase reputation for voting
+        self.member_state.update_reputation(VOTE_REPUTATION_INCREASE)?;
+
+        Ok(())
     }
 }

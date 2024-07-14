@@ -14,7 +14,7 @@ declare_id!("HScCa2Qkqn5DRFDXySiwhtTMNJs87hdo8DjsBxvBfyn6");
 #[program]
 pub mod dao_voting_program {
 
-    use state::ProposalResults;
+    use state::{MemberStateView, ProposalResults};
 
     use super::*;
 
@@ -135,5 +135,9 @@ pub mod dao_voting_program {
     pub fn cleanup_vote(ctx: Context<RemoveOrCleanupVote>) -> Result<()> {
         // Decrement votes for user
         ctx.accounts.cleanup_vote()
+    }
+
+    pub fn get_member_state(ctx: Context<GetMemberState>) -> Result<MemberStateView> {
+        ctx.accounts.get_member_state()
     }
 }

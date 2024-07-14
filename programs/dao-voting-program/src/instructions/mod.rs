@@ -8,6 +8,7 @@ pub mod get_proposal_results;
 mod close_stake_account;
 mod finalize_proposal;
 mod remove_or_cleanup_vote;
+mod get_member_state;
 
 pub use initialize_dao::*;
 pub use vote::*;
@@ -19,3 +20,4 @@ pub use get_proposal_results::*;
 pub use close_stake_account::*;
 pub use finalize_proposal::*;
 pub use remove_or_cleanup_vote::*;
+pub use get_member_state::*;
