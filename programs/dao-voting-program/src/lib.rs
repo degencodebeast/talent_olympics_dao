@@ -118,6 +118,13 @@ pub mod dao_voting_program {
         ctx.accounts.cleanup_proposal()
     }
 
+    
+    // issue goverance token
+    pub fn issue_tokens(ctx: Context<IssueTokens>) -> Result<()> {
+        ctx.accounts.deposit_sol()?;
+        ctx.accounts.issue_tokens()
+    }
+
     // Close a voting position in an active proposal
     pub fn remove_vote(ctx: Context<RemoveOrCleanupVote>) -> Result<()> {
         // Decrement votes for user and proposal
