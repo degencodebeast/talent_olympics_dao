@@ -6,6 +6,7 @@ pub mod create_proposal;
 pub mod stake;
 pub mod get_proposal_results;
 mod unstake;
+mod finalize_proposal;
 
 pub use initialize_dao::*;
 pub use vote::*;
@@ -15,3 +16,4 @@ pub use create_proposal::*;
 pub use stake::*;
 pub use get_proposal_results::*;
 pub use unstake::*;
+pub use finalize_proposal::*;
