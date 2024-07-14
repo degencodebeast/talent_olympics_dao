@@ -6,7 +6,7 @@ pub const U32_LENGTH: usize = 4;
 pub const U64_LENGTH: usize = 8;
 pub const U128_LENGTH: usize = 16;
 pub const BOOL_LENGTH: usize = 1;
-pub const OPTION_LENGTH: usize = 1;
+//pub const OPTION_LENGTH: usize = 1;
 
 // Base voting points
 pub const BASE_VOTE_POINTS: u64 = 10;

@@ -1,20 +1,3 @@
-// import * as anchor from "@coral-xyz/anchor";
-// import { Program } from "@coral-xyz/anchor";
-// import { DaoVotingProgram } from "../target/types/dao_voting_program";
-
-// describe("dao-voting-program", () => {
-//   // Configure the client to use the local cluster.
-//   anchor.setProvider(anchor.AnchorProvider.env());
-
-//   const program = anchor.workspace.DaoVotingProgram as Program<DaoVotingProgram>;
-
-//   it("Is initialized!", async () => {
-//     // Add your test here.
-//     const tx = await program.methods.initialize().rpc();
-//     console.log("Your transaction signature", tx);
-//   });
-// });
-
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN } from "@coral-xyz/anchor";
 import { DaoVotingProgram } from "../target/types/dao_voting_program";
@@ -33,8 +16,10 @@ import {
   createMintToInstruction,
   getAssociatedTokenAddressSync,
   getMinimumBalanceForRentExemptMint,
+  getAccount,
 } from "@solana/spl-token";
 import { randomBytes } from "crypto";
+import * as assert from "assert";
 
 describe("dao-voting-program", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -126,6 +111,10 @@ describe("dao-voting-program", () => {
     );
 
     await provider.sendAndConfirm(tx, [admin, mintKeypair]).then(log);
+
+    // Assert admin received tokens
+    const adminAccount = await getAccount(connection, adminAta);
+    assert.equal(adminAccount.amount.toString(), "1000000000", "Admin should have 1e9 tokens");
   });
 
   it("Initialize DAO", async () => {
@@ -152,9 +141,17 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const config = await program.account.daoSetup.fetch(configPda);
+    assert.equal(config.seed.toString(), seed.toString(), "Config seed should match");
+    assert.equal(config.issuePrice.toString(), (1 * LAMPORTS_PER_SOL).toString(), "Issue price should match");
+    assert.equal(config.issueAmount.toString(), "100", "Issue amount should match");
+    assert.equal(config.proposalFee.toString(), (0.1 * LAMPORTS_PER_SOL).toString(), "Proposal fee should match");
   });
 
   it("Issue tokens", async () => {
+    const initialBalance = await connection.getBalance(user1.publicKey);
+
     await program.methods
       .issueTokens()
       .accounts({
@@ -172,6 +169,15 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const user1Account = await getAccount(connection, user1Ata);
+    assert.equal(user1Account.amount.toString(), "100", "User1 should have 100 tokens");
+
+    const finalBalance = await connection.getBalance(user1.publicKey);
+    (assert as any)(finalBalance < initialBalance, "User1's SOL balance should have decreased");
+
+    const treasuryBalance = await connection.getBalance(treasuryPda);
+    (assert as any)(treasuryBalance > 0, "Treasury should have received SOL");
   });
 
   let user1StakeAta: PublicKey;
@@ -211,6 +217,9 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const stakeState = await program.account.stakeState.fetch(user1StakeState);
+    assert.equal(stakeState.owner.toBase58(), user1.publicKey.toBase58(), "Stake state owner should be user1");
   });
 
   it("Stake tokens", async () => {
@@ -233,6 +242,12 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const stakeAccount = await getAccount(connection, user1StakeAta);
+    assert.equal(stakeAccount.amount.toString(), "50", "Stake account should have 50 tokens");
+
+    const userAccount = await getAccount(connection, user1Ata);
+    assert.equal(userAccount.amount.toString(), "50", "User account should have 50 tokens left");
   });
 
   let proposalPda: PublicKey;
@@ -266,6 +281,10 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const proposal = await program.account.proposal.fetch(proposalPda);
+    assert.equal(proposal.id.toString(), "1", "Proposal ID should be 1");
+    assert.equal(proposal.name, "Test Proposal", "Proposal name should match");
   });
 
   let votePda: PublicKey;
@@ -291,6 +310,10 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const vote = await program.account.voteState.fetch(votePda);
+    assert.equal(vote.amount.toString(), "50", "Vote amount should be 50");
+    assert.deepEqual(vote.voteType, { yes: {} }, "Vote type should be 'yes'");
   });
 
   it("Get proposal results", async () => {
@@ -302,7 +325,9 @@ describe("dao-voting-program", () => {
       })
       .view();
 
-    console.log("Proposal Results:", results);
+    assert.equal(results.yesVotes.toString(), "50", "Yes votes should be 50");
+    assert.equal(results.noVotes.toString(), "0", "No votes should be 0");
+    assert.equal(results.abstainVotes.toString(), "0", "Abstain votes should be 0");
   });
 
   it("Remove vote", async () => {
@@ -322,9 +347,29 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const proposal = await program.account.proposal.fetch(proposalPda);
+    assert.equal(proposal.votes.toString(), "0", "Total votes should be 0 after removal");
   });
 
   it("Execute proposal", async () => {
+    // For this test, we'll need to add votes back to the proposal to meet the threshold
+    await program.methods
+      .vote(new BN(50), { yes: {} })
+      .accounts({
+        owner: user1.publicKey,
+        stakeState: user1StakeState,
+        proposal: proposalPda,
+        vote: votePda,
+        memberState: user1MemberState,
+        config: configPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user1])
+      .rpc()
+      .then(confirm)
+      .then(log);
+
     await program.methods
       .executeProposal()
       .accounts({
@@ -338,6 +383,9 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const proposal = await program.account.proposal.fetch(proposalPda);
+    assert.deepEqual(proposal.result, { succeeded: {} }, "Proposal result should be 'succeeded'");
   });
 
   it("Unstake tokens", async () => {
@@ -355,10 +403,17 @@ describe("dao-voting-program", () => {
         tokenProgram,
         systemProgram: SystemProgram.programId,
       })
+
       .signers([user1])
       .rpc()
       .then(confirm)
       .then(log);
+
+    const stakeAccount = await getAccount(connection, user1StakeAta);
+    assert.equal(stakeAccount.amount.toString(), "25", "Stake account should have 25 tokens left");
+
+    const userAccount = await getAccount(connection, user1Ata);
+    assert.equal(userAccount.amount.toString(), "75", "User account should have 75 tokens after unstaking");
   });
 
   it("Get member state", async () => {
@@ -371,10 +426,15 @@ describe("dao-voting-program", () => {
       })
       .view();
 
-    console.log("Member State:", memberState);
+    assert.equal(memberState.address.toBase58(), user1.publicKey.toBase58(), "Member address should match");
+    (assert as any)(memberState.rewardPoints.gt(new BN(0)), "Member should have some reward points");
+    assert.equal(memberState.totalVotesCast.toString(), "1", "Member should have cast 1 vote");
+    assert.equal(memberState.proposalsCreated.toString(), "1", "Member should have created 1 proposal");
   });
 
   it("Close stake account", async () => {
+    const initialBalance = await connection.getBalance(user1.publicKey);
+
     await program.methods
       .closeStakeAccount()
       .accounts({
@@ -391,6 +451,15 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    const finalBalance = await connection.getBalance(user1.publicKey);
+    (assert as any)(finalBalance > initialBalance, "User's SOL balance should have increased after closing stake account");
+
+    await assert.rejects(
+      getAccount(connection, user1StakeAta),
+      /Account does not exist/,
+      "Stake ATA should be closed"
+    );
   });
 
   it("Cleanup proposal", async () => {
@@ -407,6 +476,12 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    await assert.rejects(
+      program.account.proposal.fetch(proposalPda),
+      /Account does not exist/,
+      "Proposal account should be closed"
+    );
   });
 
   it("Cleanup vote", async () => {
@@ -426,5 +501,142 @@ describe("dao-voting-program", () => {
       .rpc()
       .then(confirm)
       .then(log);
+
+    await assert.rejects(
+      program.account.voteState.fetch(votePda),
+      /Account does not exist/,
+      "Vote account should be closed"
+    );
+  });
+
+  // Additional tests for edge cases and error handling
+
+  it("Fails to vote twice", async () => {
+    // First, create a new proposal
+    const proposalId2 = new BN(2);
+    const [proposalPda2] = PublicKey.findProgramAddressSync(
+      [Buffer.from("proposal"), configPda.toBuffer(), proposalId2.toArrayLike(Buffer, "le", 8)],
+      program.programId
+    );
+
+    await program.methods
+      .createProposal(
+        proposalId2,
+        "Test Proposal 2",
+        "https://example.com/proposal2",
+        { vote: {} },
+        new BN(10),
+        new BN(100)
+      )
+      .accounts({
+        owner: user1.publicKey,
+        stakeState: user1StakeState,
+        proposal: proposalPda2,
+        memberState: user1MemberState,
+        treasury: treasuryPda,
+        config: configPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user1])
+      .rpc()
+      .then(confirm)
+      .then(log);
+
+    // Vote once
+    const [votePda2] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vote"), proposalPda2.toBuffer(), user1.publicKey.toBuffer()],
+      program.programId
+    );
+
+    await program.methods
+      .vote(new BN(25), { yes: {} })
+      .accounts({
+        owner: user1.publicKey,
+        stakeState: user1StakeState,
+        proposal: proposalPda2,
+        vote: votePda2,
+        memberState: user1MemberState,
+        config: configPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user1])
+      .rpc()
+      .then(confirm)
+      .then(log);
+
+    // Try to vote again
+    await assert.rejects(
+      program.methods
+        .vote(new BN(25), { yes: {} })
+        .accounts({
+          owner: user1.publicKey,
+          stakeState: user1StakeState,
+          proposal: proposalPda2,
+          vote: votePda2,
+          memberState: user1MemberState,
+          config: configPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc(),
+      /AlreadyVoted/,
+      "Should not be able to vote twice on the same proposal"
+    );
+  });
+
+  it("Fails to create proposal without sufficient stake", async () => {
+    // Unstake all tokens first
+    const stakeAccount = await getAccount(connection, user1StakeAta);
+    const remainingStake = new BN(stakeAccount.amount.toString());
+
+    await program.methods
+      .unstakeTokens(remainingStake)
+      .accounts({
+        owner: user1.publicKey,
+        ownerAta: user1Ata,
+        stakeAta: user1StakeAta,
+        stakeAuth: authPda,
+        mint,
+        stakeState: user1StakeState,
+        config: configPda,
+        tokenProgram,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([user1])
+      .rpc()
+      .then(confirm)
+      .then(log);
+
+    // Try to create a proposal
+    const proposalId3 = new BN(3);
+    const [proposalPda3] = PublicKey.findProgramAddressSync(
+      [Buffer.from("proposal"), configPda.toBuffer(), proposalId3.toArrayLike(Buffer, "le", 8)],
+      program.programId
+    );
+
+    await assert.rejects(
+      program.methods
+        .createProposal(
+          proposalId3,
+          "Test Proposal 3",
+          "https://example.com/proposal3",
+          { vote: {} },
+          new BN(10),
+          new BN(100)
+        )
+        .accounts({
+          owner: user1.publicKey,
+          stakeState: user1StakeState,
+          proposal: proposalPda3,
+          memberState: user1MemberState,
+          treasury: treasuryPda,
+          config: configPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user1])
+        .rpc(),
+      /InsufficientStake/,
+      "Should not be able to create a proposal without sufficient stake"
+    );
   });
 });

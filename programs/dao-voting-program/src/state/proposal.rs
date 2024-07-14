@@ -11,7 +11,7 @@ pub struct Proposal {
 
     // Brief description or GitHub gist URL
     // 72 bytes (39 bytes + / + 32 char ID)
-    pub gist: String,
+    pub description: String,
 
     // Type of the proposal (Bounty, Executable, or Vote)
     pub proposal: ProposalType,
@@ -21,6 +21,9 @@ pub struct Proposal {
 
     // Minimum number of votes required for the proposal to pass
     pub quorum: u64,
+
+    //address of the proposer
+    pub proposer: Pubkey,
 
     // Current number of votes cast
     pub votes: u64,
@@ -40,23 +43,29 @@ pub struct Proposal {
     // Bump seed for the proposal's PDA
     pub bump: u8,
 }
-// Discriminator: 8 bytes
-// id: u64 = 8 bytes
-// name: String (max 32 characters) = 4 bytes (for length) + 32 bytes = 36 bytes
-// gist: String (max 72 characters) = 4 bytes (for length) + 72 bytes = 76 bytes
-// proposal: ProposalType (enum) = 1 byte (for discriminator) + 8 bytes (for largest variant) = 9 bytes
-// result: ProposalStatus (enum) = 1 byte
-// quorum: u64 = 8 bytes
-// votes: u64 = 8 bytes
-// expiry: u64 = 8 bytes
-// yes_votes: u64 = 8 bytes
-// no_votes: u64 = 8 bytes
-// abstain_votes: u64 = 8 bytes
-// bump: u8 = 1 byte
+
+pub const PROPOSAL_SPACE: usize = 
+    8 +  // Discriminator
+    U64_LENGTH +  // id: u64
+    4 + 32 +  // name: String (4 bytes for length + max 32 characters)
+    4 + 72 +  // description: String (4 bytes for length + max 72 characters)
+    ENUM_LENGTH + U64_LENGTH + PUBKEY_LENGTH +  // proposal: ProposalType (1 byte discriminator + largest variant)
+    ENUM_LENGTH +  // result: ProposalStatus
+    U64_LENGTH +  // quorum: u64
+    PUBKEY_LENGTH +  // proposer: Pubkey
+    U64_LENGTH +  // votes: u64
+    U64_LENGTH +  // expiry: u64
+    U64_LENGTH +  // yes_votes: u64
+    U64_LENGTH +  // no_votes: u64
+    U64_LENGTH +  // abstain_votes: u64
+    U8_LENGTH;    // bump: u8
+
+// This should total 219 bytes
+
 impl Proposal {
     // Total size of the Proposal account in bytes
     //pub const LEN: usize = 8 + 32 + 72 + ENUM_LENGTH * 2 + U8_LENGTH * 2 + 7 * U64_LENGTH + U8_LENGTH;
-    pub const LEN: usize = 187;
+    pub const LEN: usize = PROPOSAL_SPACE;
 
     /// Initializes a new Proposal
     ///
@@ -77,18 +86,20 @@ impl Proposal {
         &mut self,
         id: u64,
         name: String,
-        gist: String,
+        proposer: Pubkey,
+        description: String,
         proposal: ProposalType,
         quorum: u64,
         expiry: u64,
         bump: u8,
     ) -> Result<()> {
         require!(name.len() < 33, DaoError::InvalidName);
-        require!(gist.len() < 73, DaoError::InvalidGist);
+        require!(description.len() < 73, DaoError::InvalidGist);
         self.id = id;
         self.proposal = proposal;
         self.name = name;
-        self.gist = gist;
+        self.proposer = proposer;
+        self.description = description;
         self.result = ProposalStatus::Open;
         self.quorum = quorum;
         self.votes = 0;

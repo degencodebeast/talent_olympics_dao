@@ -53,7 +53,7 @@ pub mod dao_voting_program {
         ctx: Context<CreateProposal>,
         id: u64,
         name: String,
-        gist: String,
+        description: String,
         proposal: ProposalType,
         threshold: u64,
         amount: u64,
@@ -66,7 +66,7 @@ pub mod dao_voting_program {
         ctx.accounts.create_proposal(
             id,
             name,
-            gist,
+            description,
             proposal,
             threshold,
             amount,

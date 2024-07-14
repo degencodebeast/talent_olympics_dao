@@ -50,7 +50,7 @@ impl<'info> CreateProposal<'info> {
         &mut self,
         id: u64,
         name: String,
-        gist: String,
+        description: String,
         proposal: ProposalType,
         quorum: u64,
         expiry: u64,
@@ -67,7 +67,8 @@ impl<'info> CreateProposal<'info> {
         // Initialize the proposal
         self.proposal.init(
             id, name, // A proposal name
-            gist, // 72 bytes (39 bytes + / + 32 byte ID)
+            self.owner.key(),
+            description, // 72 bytes (39 bytes + / + 32 byte ID)
             proposal, quorum, expiry, bump,
         )? ;
 
