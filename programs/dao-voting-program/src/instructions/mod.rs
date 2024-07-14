@@ -1,21 +1,21 @@
 pub mod initialize_dao;
 pub mod vote;
-pub mod issue_token;
+pub mod issue_tokens;
 pub mod init_stake;
 pub mod create_proposal;
 pub mod stake;
 pub mod get_proposal_results;
-mod unstake;
+mod close_stake_account;
 mod finalize_proposal;
 mod remove_or_cleanup_vote;
 
 pub use initialize_dao::*;
 pub use vote::*;
-pub use issue_token::*;
+pub use issue_tokens::*;
 pub use init_stake::*;
 pub use create_proposal::*;
 pub use stake::*;
 pub use get_proposal_results::*;
-pub use unstake::*;
+pub use close_stake_account::*;
 pub use finalize_proposal::*;
 pub use remove_or_cleanup_vote::*;

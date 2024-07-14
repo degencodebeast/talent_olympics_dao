@@ -4,7 +4,7 @@ use anchor_spl::{token::{Token, TokenAccount, Mint, CloseAccount, close_account}
 use crate::{state::{setup::DaoSetup, StakeState}, errors::DaoError};
 
 #[derive(Accounts)]
-pub struct Unstake<'info> {
+pub struct CloseStakeAccount<'info> {
     #[account(mut)]
     owner: Signer<'info>,
     #[account(
@@ -43,8 +43,8 @@ pub struct Unstake<'info> {
     system_program: Program<'info, System>
 }
 
-impl<'info> Unstake<'info> {
-    pub fn cleanup_stake(
+impl<'info> CloseStakeAccount<'info> {
+    pub fn cleanup(
         &mut self
     ) -> Result<()> {
         self.close_stake_ata()?;
