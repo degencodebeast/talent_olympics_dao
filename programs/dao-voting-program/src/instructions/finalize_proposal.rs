@@ -1,5 +1,9 @@
 use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
-use crate::{state::{setup::DaoSetup, Proposal, ProposalType}, errors::DaoError};
+use crate::{
+    state::{setup::DaoSetup, Proposal, ProposalType, MemberState},
+    errors::DaoError,
+    constants::*,
+};
 
 // This struct defines the accounts required for the CleanupProposal instruction
 #[derive(Accounts)]
@@ -17,6 +21,13 @@ pub struct FinalizeProposal<'info> {
         bump = proposal.bump
     )]
     proposal: Account<'info, Proposal>,  // The proposal account being cleaned up or executed
+
+    #[account(
+        mut,
+        seeds=[b"member", config.key().as_ref(), proposal.proposer.key().as_ref()],
+        bump = proposer_state.bump,
+    )]
+    proposer_state: Account<'info, MemberState>, //The state of the proposer account
 
     #[account(
         seeds=[b"treasury", config.key().as_ref()],
@@ -49,6 +60,11 @@ impl<'info> FinalizeProposal<'info> {
     ) -> Result<()> {
         self.proposal.try_finalize()?;  // Attempt to finalize the proposal
         self.proposal.is_succeeded()?;  // Ensure the proposal has succeeded
+        
+        // Add reward points and increase reputation for the proposer
+        self.proposer_state.add_proposal_success_points(PROPOSAL_SUCCESS_POINTS)?;
+        self.proposer_state.update_reputation(PROPOSAL_SUCCESS_REPUTATION_INCREASE)?;
+
         match self.proposal.proposal {
             ProposalType::Bounty(payee, payout) => self.payout_bounty(payee, payout),
             ProposalType::Executable => self.execute_tx(),

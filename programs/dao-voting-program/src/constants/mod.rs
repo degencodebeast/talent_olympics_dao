@@ -30,7 +30,7 @@ pub const VOTE_REPUTATION_DECREASE: i64 = -2;
 pub const PROPOSAL_CREATION_REPUTATION_INCREASE: i64 = 5;
 
 // Reputation increase for a successful proposal
-pub const PROPOSAL_SUCCESS_REPUTATION_INCREASE: u64 = 20;
+pub const PROPOSAL_SUCCESS_REPUTATION_INCREASE: i64 = 20;
 
 // Minimum reputation required to create a proposal
 pub const MIN_REPUTATION_FOR_PROPOSAL: u64 = 100;
