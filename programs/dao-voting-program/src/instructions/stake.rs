@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{token::{Token, TokenAccount, Transfer as TransferSpl, transfer as transfer_spl, Mint}, associated_token::AssociatedToken};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{transfer as transfer_spl, Mint, Token, TokenAccount, Transfer as TransferSpl},
+};
 
-use crate::state::{setup::DaoSetup, StakeState};
+use crate::state::{setup::DaoSetup, MemberState, StakeState};
 
 #[derive(Accounts)]
 pub struct Stake<'info> {
@@ -44,41 +47,59 @@ pub struct Stake<'info> {
         bump = config.config_bump
     )]
     config: Account<'info, DaoSetup>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = MemberState::LEN,
+        seeds = [b"member", config.key().as_ref(), owner.key().as_ref()],
+        bump
+    )]
+    member_state: Account<'info, MemberState>,
     token_program: Program<'info, Token>,
     associated_token_program: Program<'info, AssociatedToken>,
-    system_program: Program<'info, System>
+    system_program: Program<'info, System>,
 }
 
 impl<'info> Stake<'info> {
     pub fn deposit_tokens(
         &mut self,
-        amount: u64
+        amount: u64,
+        member_state_bump: u8,
     ) -> Result<()> {
+        // Stake tokens
         self.stake_state.stake(amount)?;
 
+        // Transfer tokens
         let accounts = TransferSpl {
             from: self.owner_ata.to_account_info(),
             to: self.stake_ata.to_account_info(),
             authority: self.owner.to_account_info()
         };
-
         let ctx = CpiContext::new(
             self.token_program.to_account_info(),
             accounts
         );
-        transfer_spl(ctx, amount)
-    }
+        transfer_spl(ctx, amount)?;
 
-    pub fn withdraw_tokens(
-        &mut self,
-        amount: u64
-    ) -> Result<()> {
+        // Initialize member state if it's a new account
+        if self.member_state.join_date == 0 {
+            self.member_state.init(
+                self.owner.key(),
+                member_state_bump,
+            )?;
+        }
+
+        Ok(())
+
+    } 
+
+    pub fn withdraw_tokens(&mut self, amount: u64) -> Result<()> {
         self.stake_state.unstake(amount)?;
 
         let accounts = TransferSpl {
             from: self.stake_ata.to_account_info(),
             to: self.owner_ata.to_account_info(),
-            authority: self.auth.to_account_info()
+            authority: self.auth.to_account_info(),
         };
 
         let seeds = &[
@@ -93,7 +114,7 @@ impl<'info> Stake<'info> {
         let ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             accounts,
-            signer_seeds
+            signer_seeds,
         );
 
         transfer_spl(ctx, amount)

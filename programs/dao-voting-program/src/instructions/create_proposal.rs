@@ -1,6 +1,11 @@
-use anchor_lang::{prelude::*, system_program::{Transfer, transfer}};
+use anchor_lang::{
+    prelude::*,
+    system_program::{transfer, Transfer},
+};
 
-use crate::{state::{setup::DaoSetup, Proposal, StakeState, ProposalType}, errors::DaoError};
+use crate::{
+    constants::{PROPOSAL_CREATION_POINTS, PROPOSAL_CREATION_REPUTATION_INCREASE}, errors::DaoError, state::{setup::DaoSetup, MemberState, Proposal, ProposalType, StakeState}
+};
 
 #[derive(Accounts)]
 #[instruction(id: u64)]
@@ -22,6 +27,12 @@ pub struct CreateProposal<'info> {
     )]
     proposal: Account<'info, Proposal>,
     #[account(
+        mut,
+        seeds=[b"member", config.key().as_ref(), owner.key().as_ref()],
+        bump = member_state.bump,
+    )]
+    member_state: Account<'info, MemberState>,
+    #[account(
         seeds=[b"treasury", config.key().as_ref()],
         bump = config.treasury_bump
     )]
@@ -31,11 +42,10 @@ pub struct CreateProposal<'info> {
         bump = config.config_bump
     )]
     config: Account<'info, DaoSetup>,
-    system_program: Program<'info, System>
+    system_program: Program<'info, System>,
 }
 
 impl<'info> CreateProposal<'info> {
-
     pub fn create_proposal(
         &mut self,
         id: u64,
@@ -44,7 +54,7 @@ impl<'info> CreateProposal<'info> {
         proposal: ProposalType,
         quorum: u64,
         expiry: u64,
-        bump: u8
+        bump: u8,
     ) -> Result<()> {
         // Make sure user has staked
         self.stake_state.check_stake()?;
@@ -56,28 +66,27 @@ impl<'info> CreateProposal<'info> {
         self.config.check_max_expiry(expiry)?;
         // Initialize the proposal
         self.proposal.init(
-            id,
-            name, // A proposal name
+            id, name, // A proposal name
             gist, // 72 bytes (39 bytes + / + 32 byte ID)
-            proposal,
-            quorum,
-            expiry,
-            bump
-        )
+            proposal, quorum, expiry, bump,
+        )? ;
+
+        // Update member state
+        self.member_state
+            .add_proposal_points(PROPOSAL_CREATION_POINTS)?;
+        self.member_state
+            .update_reputation(PROPOSAL_CREATION_REPUTATION_INCREASE)?;
+
+        Ok(())
     }
 
-    pub fn pay_proposal_fee(
-        &mut self
-    ) -> Result<()> {
+    pub fn pay_proposal_fee(&mut self) -> Result<()> {
         let accounts = Transfer {
             from: self.owner.to_account_info(),
-            to: self.treasury.to_account_info()
+            to: self.treasury.to_account_info(),
         };
 
-        let ctx = CpiContext::new(
-            self.system_program.to_account_info(),
-            accounts
-        );
+        let ctx = CpiContext::new(self.system_program.to_account_info(), accounts);
 
         transfer(ctx, self.config.proposal_fee)
     }

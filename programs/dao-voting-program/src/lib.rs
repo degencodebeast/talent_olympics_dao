@@ -81,8 +81,9 @@ pub mod dao_voting_program {
 
     // Stake DAO tokens
     pub fn stake_tokens(ctx: Context<Stake>, amount: u64) -> Result<()> {
+        let bump = *ctx.bumps.get("member").ok_or(DaoError::BumpError)?;
         // Deposit tokens, add stake
-        ctx.accounts.deposit_tokens(amount)
+        ctx.accounts.deposit_tokens(amount, bump)
     }
 
     // Vote on a proposal

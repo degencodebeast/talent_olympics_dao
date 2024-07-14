@@ -1,7 +1,7 @@
 pub mod initialize_dao;
 pub mod vote;
-pub mod issue_tokens;
-pub mod init_stake;
+pub mod issue_governance_tokens;
+pub mod initialize_stake;
 pub mod create_proposal;
 pub mod stake;
 pub mod get_proposal_results;
@@ -12,8 +12,8 @@ mod get_member_state;
 
 pub use initialize_dao::*;
 pub use vote::*;
-pub use issue_tokens::*;
-pub use init_stake::*;
+pub use issue_governance_tokens::*;
+pub use initialize_stake::*;
 pub use create_proposal::*;
 pub use stake::*;
 pub use get_proposal_results::*;

@@ -27,7 +27,7 @@ pub const VOTE_REPUTATION_INCREASE: i64 = 1;
 pub const VOTE_REPUTATION_DECREASE: i64 = -2;
 
 // Reputation increase for creating a proposal
-pub const PROPOSAL_CREATION_REPUTATION_INCREASE: u64 = 5;
+pub const PROPOSAL_CREATION_REPUTATION_INCREASE: i64 = 5;
 
 // Reputation increase for a successful proposal
 pub const PROPOSAL_SUCCESS_REPUTATION_INCREASE: u64 = 20;
