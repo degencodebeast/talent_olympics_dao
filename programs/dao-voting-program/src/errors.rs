@@ -35,5 +35,9 @@ pub enum DaoError {
     #[msg("Invalid proposal status")]
     InvalidProposalStatus,
     #[msg("Invalid stake amount")]
-    InvalidStakeAmount
+    InvalidStakeAmount,
+    #[msg("Failed to deserialize Proposal")]
+    DeserializationError,
+    #[msg("Failed to serialize Proposal")]
+    SerializationError
 }

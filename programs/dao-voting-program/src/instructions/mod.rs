@@ -4,6 +4,7 @@ pub mod issue_token;
 pub mod init_stake;
 pub mod create_proposal;
 pub mod stake;
+pub mod get_proposal_results;
 
 pub use initialize_dao::*;
 pub use vote::*;
@@ -11,3 +12,4 @@ pub use issue_token::*;
 pub use init_stake::*;
 pub use create_proposal::*;
 pub use stake::*;
+pub use get_proposal_results::*;
