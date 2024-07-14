@@ -7,6 +7,7 @@ pub mod stake;
 pub mod get_proposal_results;
 mod unstake;
 mod finalize_proposal;
+mod remove_or_cleanup_vote;
 
 pub use initialize_dao::*;
 pub use vote::*;
@@ -17,3 +18,4 @@ pub use stake::*;
 pub use get_proposal_results::*;
 pub use unstake::*;
 pub use finalize_proposal::*;
+pub use remove_or_cleanup_vote::*;

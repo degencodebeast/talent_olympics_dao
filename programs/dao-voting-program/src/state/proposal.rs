@@ -81,7 +81,7 @@ impl Proposal {
         proposal: ProposalType,
         quorum: u64,
         expiry: u64,
-        bump: u8  
+        bump: u8,
     ) -> Result<()> {
         require!(name.len() < 33, DaoError::InvalidName);
         require!(gist.len() < 73, DaoError::InvalidGist);
@@ -96,18 +96,52 @@ impl Proposal {
         self.no_votes = 0;
         self.abstain_votes = 0;
         self.bump = bump;
-        self.expiry = Clock::get()?.slot.checked_add(expiry).ok_or(DaoError::Overflow)?;
+        self.expiry = Clock::get()?
+            .slot
+            .checked_add(expiry)
+            .ok_or(DaoError::Overflow)?;
         Ok(())
     }
 
     /// Attempts to finalize the proposal based on votes and expiry
-    pub fn try_finalize(&mut self) {
-        if self.votes >= self.quorum && self.check_expiry().is_ok() {
-            self.result = ProposalStatus::Succeeded
-        } else if self.votes < self.quorum && self.check_expiry().is_err() {
-            self.result = ProposalStatus::Failed
+    pub fn try_finalize(&mut self) -> Result<()> {
+        // First, check if the proposal has already been finalized
+        if self.result != ProposalStatus::Open {
+            return Ok(()); // Proposal has already been finalized
         }
+
+        // Check if the proposal has expired
+        let has_expired = self.check_expiry().is_err();
+
+        // Calculate total votes
+        let total_votes = self.yes_votes + self.no_votes;
+
+        // Determine the result of the proposal
+        self.result = if total_votes >= self.quorum {
+            // Quorum reached, decision can be made based on vote count
+            if self.yes_votes > self.no_votes {
+                ProposalStatus::Succeeded // More 'yes' votes, proposal passes
+            } else {
+                ProposalStatus::Failed // Equal or more 'no' votes, proposal fails
+            }
+        } else if has_expired {
+            // Quorum not reached and voting period has ended
+            ProposalStatus::Failed // Proposal fails due to insufficient participation
+        } else {
+            // Quorum not reached but voting period is still open
+            ProposalStatus::Open // Proposal remains open for more votes
+        };
+
+        Ok(())
     }
+
+    // pub fn try_finalize(&mut self) {
+    //     if self.yes_votes >= self.quorum && self.yes_votes > self.no_votes && self.check_expiry().is_ok() {
+    //         self.result = ProposalStatus::Succeeded
+    //     } else if self.votes < self.quorum && self.check_expiry().is_err() {
+    //         self.result = ProposalStatus::Failed
+    //     }
+    // }
 
     /// Checks if the proposal has expired
     ///
@@ -125,7 +159,10 @@ impl Proposal {
     ///
     /// Returns an error if the proposal is not in the Open status
     pub fn is_open(&mut self) -> Result<()> {
-        require!(self.result == ProposalStatus::Open, DaoError::InvalidProposalStatus);
+        require!(
+            self.result == ProposalStatus::Open,
+            DaoError::InvalidProposalStatus
+        );
         Ok(())
     }
 
@@ -135,7 +172,10 @@ impl Proposal {
     ///
     /// Returns an error if the proposal is not in the Succeeded status
     pub fn is_succeeded(&self) -> Result<()> {
-        require!(self.result == ProposalStatus::Succeeded, DaoError::InvalidProposalStatus);
+        require!(
+            self.result == ProposalStatus::Succeeded,
+            DaoError::InvalidProposalStatus
+        );
         Ok(())
     }
 
@@ -145,7 +185,10 @@ impl Proposal {
     ///
     /// Returns an error if the proposal is not in the Failed status
     pub fn is_failed(&self) -> Result<()> {
-        require!(self.result == ProposalStatus::Failed, DaoError::InvalidProposalStatus);
+        require!(
+            self.result == ProposalStatus::Failed,
+            DaoError::InvalidProposalStatus
+        );
         Ok(())
     }
 
@@ -158,13 +201,28 @@ impl Proposal {
     /// # Errors
     ///
     /// Returns an error if adding votes results in an overflow
-  
+
     pub fn add_vote(&mut self, amount: u64, vote_type: VoteType) -> Result<()> {
         self.votes = self.votes.checked_add(amount).ok_or(DaoError::Overflow)?;
         match vote_type {
-            VoteType::Yes => self.yes_votes = self.yes_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
-            VoteType::No => self.no_votes = self.no_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
-            VoteType::Abstain => self.abstain_votes = self.abstain_votes.checked_add(amount).ok_or(DaoError::Overflow)?,
+            VoteType::Yes => {
+                self.yes_votes = self
+                    .yes_votes
+                    .checked_add(amount)
+                    .ok_or(DaoError::Overflow)?
+            }
+            VoteType::No => {
+                self.no_votes = self
+                    .no_votes
+                    .checked_add(amount)
+                    .ok_or(DaoError::Overflow)?
+            }
+            VoteType::Abstain => {
+                self.abstain_votes = self
+                    .abstain_votes
+                    .checked_add(amount)
+                    .ok_or(DaoError::Overflow)?
+            }
         }
         self.try_finalize();
         Ok(())
@@ -182,9 +240,24 @@ impl Proposal {
     pub fn remove_vote(&mut self, amount: u64, vote_type: VoteType) -> Result<()> {
         self.votes = self.votes.checked_sub(amount).ok_or(DaoError::Underflow)?;
         match vote_type {
-            VoteType::Yes => self.yes_votes = self.yes_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
-            VoteType::No => self.no_votes = self.no_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
-            VoteType::Abstain => self.abstain_votes = self.abstain_votes.checked_sub(amount).ok_or(DaoError::Underflow)?,
+            VoteType::Yes => {
+                self.yes_votes = self
+                    .yes_votes
+                    .checked_sub(amount)
+                    .ok_or(DaoError::Underflow)?
+            }
+            VoteType::No => {
+                self.no_votes = self
+                    .no_votes
+                    .checked_sub(amount)
+                    .ok_or(DaoError::Underflow)?
+            }
+            VoteType::Abstain => {
+                self.abstain_votes = self
+                    .abstain_votes
+                    .checked_sub(amount)
+                    .ok_or(DaoError::Underflow)?
+            }
         }
         Ok(())
     }
@@ -206,7 +279,7 @@ impl Proposal {
 pub enum ProposalType {
     Bounty(Pubkey, u64), // Pay an address some amount of SOL
     Executable,          // Sign some kind of instruction(s) with an accounts struct, etc
-    Vote                 // We just want to know what people think. No money involved
+    Vote,                // We just want to know what people think. No money involved
 }
 
 /// Enum representing the current status of a proposal
@@ -214,16 +287,15 @@ pub enum ProposalType {
 pub enum ProposalStatus {
     Open,      // The proposal is active and accepting votes
     Succeeded, // The proposal has passed (met quorum and not expired)
-    Failed     // The proposal has failed (didn't meet quorum or expired)
+    Failed,    // The proposal has failed (didn't meet quorum or expired)
 }
-
 
 /// Enum representing the type of vote
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Copy, Eq)]
 pub enum VoteType {
     Yes,
     No,
-    Abstain
+    Abstain,
 }
 
 /// Struct representing the results of a proposal
