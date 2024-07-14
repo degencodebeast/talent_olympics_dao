@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use crate::{state::{setup::DaoSetup, Proposal, StakeState, VoteState, VoteType}, errors::DaoError};
 
 #[derive(Accounts)]
-pub struct RemoveVote<'info> {
+pub struct RemoveOrCleanupVote<'info> {
     #[account(mut)]
     owner: Signer<'info>,
     #[account(
@@ -37,7 +37,7 @@ pub struct RemoveVote<'info> {
     system_program: Program<'info, System>
 }
 
-impl<'info> RemoveVote<'info> {
+impl<'info> RemoveOrCleanupVote<'info> {
     pub fn cleanup_vote(
         &mut self
     ) -> Result<()> {

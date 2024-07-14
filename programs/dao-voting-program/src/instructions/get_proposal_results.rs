@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::{setup::DaoSetup, Proposal, ProposalResults};
-use crate::errors::DaoError;
+//use crate::errors::DaoError;
 
 #[derive(Accounts)]
 pub struct GetProposalResults<'info> {
@@ -36,7 +36,7 @@ impl<'info> GetProposalResults<'info> {
 
         // Check if the proposal has expired
         if Clock::get()?.slot >= proposal_data.expiry {
-            proposal_data.try_finalize();
+            proposal_data.try_finalize()?;
             proposal_data.serialize(&mut &mut proposal[..])?;
         }
 

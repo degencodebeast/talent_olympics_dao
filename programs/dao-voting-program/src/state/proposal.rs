@@ -224,7 +224,7 @@ impl Proposal {
                     .ok_or(DaoError::Overflow)?
             }
         }
-        self.try_finalize();
+        self.try_finalize()?;
         Ok(())
     }
 

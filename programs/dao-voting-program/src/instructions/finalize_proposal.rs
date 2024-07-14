@@ -38,7 +38,7 @@ impl<'info> FinalizeProposal<'info> {
     pub fn cleanup_proposal(
         &mut self
     ) -> Result<()> {
-        self.proposal.try_finalize();  // Attempt to finalize the proposal
+        let _ = self.proposal.try_finalize();  // Attempt to finalize the proposal
         self.proposal.is_failed()?;  // Ensure the proposal has failed
         Ok(())
     }
@@ -47,7 +47,7 @@ impl<'info> FinalizeProposal<'info> {
     pub fn execute_proposal(
         &mut self
     ) -> Result<()> {
-        self.proposal.try_finalize();  // Attempt to finalize the proposal
+        self.proposal.try_finalize()?;  // Attempt to finalize the proposal
         self.proposal.is_succeeded()?;  // Ensure the proposal has succeeded
         match self.proposal.proposal {
             ProposalType::Bounty(payee, payout) => self.payout_bounty(payee, payout),
