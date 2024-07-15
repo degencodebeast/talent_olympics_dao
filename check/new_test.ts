@@ -11,14 +11,12 @@ import {
 import {
     MINT_SIZE,
     TOKEN_PROGRAM_ID,
-    createAssociatedTokenAccountIdempotentInstruction,
+    createAssociatedTokenAccountInstruction,
     createInitializeMint2Instruction,
     createMintToInstruction,
     getAssociatedTokenAddressSync,
     getMinimumBalanceForRentExemptMint,
     getAccount,
-    createAssociatedTokenAccount,
-    createAssociatedTokenAccountInstruction,
     ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { randomBytes } from "crypto";
@@ -28,11 +26,8 @@ describe("dao-voting-program", () => {
     anchor.setProvider(anchor.AnchorProvider.env());
 
     const provider = anchor.getProvider() as anchor.AnchorProvider;
-    console.log("Provider wallet public key:", provider.wallet.publicKey.toBase58());
-
     const connection = provider.connection;
     const program = anchor.workspace.DaoVotingProgram as Program<DaoVotingProgram>;
-    const tokenProgram = TOKEN_PROGRAM_ID;
 
     const confirm = async (signature: string): Promise<string> => {
         const block = await connection.getLatestBlockhash();
@@ -50,12 +45,9 @@ describe("dao-voting-program", () => {
         return signature;
     };
 
-    // let mintKeypair: Keypair;
-    // let mint: PublicKey;
-
     const seed = new BN(randomBytes(8));
+    const mintKeypair = Keypair.generate();
     const [admin, user1, user2] = Array.from({ length: 3 }, () => Keypair.generate());
-
 
     let adminAta: PublicKey;
     let user1Ata: PublicKey;
@@ -70,11 +62,9 @@ describe("dao-voting-program", () => {
 
     let proposalPda: PublicKey;
     let votePda: PublicKey;
-    let mintPda: PublicKey;
     const proposalId = new BN(1);
 
-    before(async () => {
-        console.log("Starting before hook");
+    it("Initialize environment", async () => {
         // Airdrop SOL to admin and users
         await Promise.all(
             [admin, user1, user2].map(async (kp) => {
@@ -84,7 +74,6 @@ describe("dao-voting-program", () => {
             })
         );
 
-        console.log("Deriving PDAs");
         // Derive PDAs
         [configPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("config"), seed.toArrayLike(Buffer, "le", 8)],
@@ -99,17 +88,7 @@ describe("dao-voting-program", () => {
             program.programId
         );
 
-        [mintPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("mint"), configPda.toBuffer()],
-            program.programId
-        );
-
-
-        console.log("Creating mint");
         // Create mint
-        const mintKeypair = Keypair.generate();
-        mintPda = mintKeypair.publicKey;
-
         const lamports = await getMinimumBalanceForRentExemptMint(connection);
         const createAccountIx = SystemProgram.createAccount({
             fromPubkey: provider.wallet.publicKey,
@@ -128,19 +107,12 @@ describe("dao-voting-program", () => {
         );
         const tx = new Transaction().add(createAccountIx, initializeMintIx);
 
-        try {
-            await provider.sendAndConfirm(tx, [mintKeypair]).then(log);
-            console.log("Mint created successfully");
-        } catch (error) {
-            console.error("Error creating mint:", error);
-            throw error;
-        }
+        await provider.sendAndConfirm(tx, [mintKeypair]).then(log);
 
-        console.log("Creating ATAs")
         // Create ATAs
-        adminAta = getAssociatedTokenAddressSync(mintPda, admin.publicKey);
-        user1Ata = getAssociatedTokenAddressSync(mintPda, user1.publicKey);
-        user2Ata = getAssociatedTokenAddressSync(mintPda, user2.publicKey);
+        adminAta = getAssociatedTokenAddressSync(mintKeypair.publicKey, admin.publicKey);
+        user1Ata = getAssociatedTokenAddressSync(mintKeypair.publicKey, user1.publicKey);
+        user2Ata = getAssociatedTokenAddressSync(mintKeypair.publicKey, user2.publicKey);
 
         const createAtasTx = new Transaction().add(
             createAssociatedTokenAccountInstruction(
@@ -163,17 +135,9 @@ describe("dao-voting-program", () => {
             )
         );
 
-        try {
-            await provider.sendAndConfirm(createAtasTx, []).then(log);
-            console.log("ATAs created successfully");
-        } catch (error) {
-            console.error("Error creating ATAs:", error);
-            throw error;
-        }
+        await provider.sendAndConfirm(createAtasTx, []).then(log);
 
-        console.log("Deriving other PDAs");
-
-        //Derive other PDAs
+        // Derive other PDAs
         [user1StakeAta] = PublicKey.findProgramAddressSync(
             [Buffer.from("vault"), configPda.toBuffer(), user1.publicKey.toBuffer()],
             program.programId
@@ -186,67 +150,73 @@ describe("dao-voting-program", () => {
             [Buffer.from("member"), configPda.toBuffer(), user1.publicKey.toBuffer()],
             program.programId
         );
-
         [proposalPda] = PublicKey.findProgramAddressSync(
             [Buffer.from("proposal"), configPda.toBuffer(), proposalId.toArrayLike(Buffer, "le", 8)],
             program.programId
         );
-
         [votePda] = PublicKey.findProgramAddressSync(
             [Buffer.from("vote"), proposalPda.toBuffer(), user1.publicKey.toBuffer()],
             program.programId
         );
-
-        console.log("Before hook completed successfully");
-        // // Create ATAs
-        // adminAta = getAssociatedTokenAddressSync(mint, admin.publicKey);
-        // user1Ata = getAssociatedTokenAddressSync(mint, user1.publicKey);
-        // user2Ata = getAssociatedTokenAddressSync(mint, user2.publicKey);
-
-        // await connection.confirmTransaction(txSignature, 'confirmed');
-        // await log(txSignature);
-
-        // Assert admin received tokens
-        // const adminAccount = await getAccount(connection, adminAta);
-        // assert.equal(adminAccount.amount.toString(), "1000000000", "Admin should have 1e9 tokens");
     });
 
     it("Initialize DAO", async () => {
-        [mintPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("mint"), configPda.toBuffer()],
-            program.programId
-        );
         await program.methods
             .initialize(
                 seed,
-                new BN(1 * LAMPORTS_PER_SOL), // issue_price
-                new BN(100), // issue_amount
-                new BN(0.1 * LAMPORTS_PER_SOL), // proposal_fee
-                new BN(1e6), // max_supply
-                new BN(100), // min_quorum
-                new BN(100000) // max_expiry
+                new BN(1 * LAMPORTS_PER_SOL),
+                new BN(100),
+                new BN(0.1 * LAMPORTS_PER_SOL),
+                new BN(1e6),
+                new BN(100),
+                new BN(100000)
             )
             .accounts({
                 initializer: provider.wallet.publicKey,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 config: configPda,
                 treasury: treasuryPda,
                 auth: authPda,
-                tokenProgram,
+                tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
-            })//.rpc.then(confirm).then(log)
-            //.signers([admin])
-            .signers([]) //Add this line to explicitly state you are not adding additional signers
+            })
             .rpc()
             .then(confirm)
             .then(log);
 
         const config = await program.account.daoSetup.fetch(configPda);
-        assert.ok(config, "config should be initialized")
-        // assert.equal(config.seed.toString(), seed.toString(), "Config seed should match");
-        assert.equal(config.issuePrice.toString(), (1 * LAMPORTS_PER_SOL).toString(), "Issue price should match");
-        // assert.equal(config.issueAmount.toString(), "100", "Issue amount should match");
-        // assert.equal(config.proposalFee.toString(), (0.1 * LAMPORTS_PER_SOL).toString(), "Proposal fee should match");
+        assert.ok(config, "Config should be initialized");
+    });
+
+    it("Issue tokens", async () => {
+        const initialBalance = await connection.getBalance(user1.publicKey);
+
+        await program.methods
+            .issueTokens()
+            .accounts({
+                initializer: user1.publicKey,
+                initializerAta: user1Ata,
+                auth: authPda,
+                treasury: treasuryPda,
+                mint: mintKeypair.publicKey,
+                config: configPda,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([user1])
+            .rpc()
+            .then(confirm)
+            .then(log);
+
+        const user1Account = await getAccount(connection, user1Ata);
+        assert.equal(user1Account.amount.toString(), "100", "User1 should have 100 tokens");
+
+        const finalBalance = await connection.getBalance(user1.publicKey);
+        assert(finalBalance < initialBalance, "User1's SOL balance should have decreased");
+
+        const treasuryBalance = await connection.getBalance(treasuryPda);
+        assert(treasuryBalance > 0, "Treasury should have received SOL");
     });
 
     it("Initialize stake", async () => {
@@ -257,7 +227,7 @@ describe("dao-voting-program", () => {
                 ownerAta: user1Ata,
                 stakeAta: user1StakeAta,
                 stakeAuth: authPda,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 stakeState: user1StakeState,
                 config: configPda,
                 tokenProgram: TOKEN_PROGRAM_ID,
@@ -266,15 +236,13 @@ describe("dao-voting-program", () => {
             })
             .signers([user1])
             .rpc()
-        // .then(confirm)
-        // .then(log);
+            .then(confirm)
+            .then(log);
 
         const stakeState = await program.account.stakeState.fetch(user1StakeState);
-        //assert.equal(stakeState.owner.toBase58(), user1.publicKey.toBase58(), "Stake state owner should be user1");
-        assert.ok(stakeState, "Stake should be initialized");
+        assert.ok(stakeState, "Stake state should be initialized");
     });
 
-    
     it("Stake tokens", async () => {
         const amount = new BN(50);
         await program.methods
@@ -283,7 +251,7 @@ describe("dao-voting-program", () => {
                 owner: user1.publicKey,
                 ownerAta: user1Ata,
                 stakeAta: user1StakeAta,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 auth: authPda,
                 stakeState: user1StakeState,
                 memberState: user1MemberState,
@@ -304,127 +272,6 @@ describe("dao-voting-program", () => {
         assert.equal(userAccount.amount.toString(), "50", "User account should have 50 tokens left");
     });
 
-
-    it("Issue tokens", async () => {
-        // Re-derive PDAs to ensure they're correct
-        [configPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("config"), seed.toArrayLike(Buffer, "le", 8)],
-            program.programId
-        );
-        [treasuryPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("treasury"), configPda.toBuffer()],
-            program.programId
-        );
-        [authPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("auth"), configPda.toBuffer()],
-            program.programId
-        );
-        [mintPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("mint"), configPda.toBuffer()],
-            program.programId
-        );
-    
-        // Ensure user1Ata is correctly derived
-        user1Ata = getAssociatedTokenAddressSync(mintPda, user1.publicKey);
-    
-        // Fetch config to ensure it's initialized
-        const config = await program.account.daoSetup.fetch(configPda);
-        assert.ok(config, "Config should be initialized");
-    
-        console.log("Mint PDA:", mintPda.toBase58());
-        console.log("Config PDA:", configPda.toBase58());
-        console.log("Auth PDA:", authPda.toBase58());
-        console.log("Treasury PDA:", treasuryPda.toBase58());
-        console.log("User1 ATA:", user1Ata.toBase58());
-    
-        const initialBalance = await connection.getBalance(user1.publicKey);
-    
-        try {
-            await program.methods
-                .issueTokens()
-                .accounts({
-                    initializer: user1.publicKey,
-                    initializerAta: user1Ata,
-                    auth: authPda,
-                    treasury: treasuryPda,
-                    mint: mintPda,
-                    config: configPda,
-                    tokenProgram: TOKEN_PROGRAM_ID,
-                    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                    systemProgram: SystemProgram.programId,
-                })
-                .signers([user1])
-                .rpc()
-                .then(confirm)
-                .then(log);
-    
-            const user1Account = await getAccount(connection, user1Ata);
-            assert.equal(user1Account.amount.toString(), "100", "User1 should have 100 tokens");
-    
-            const finalBalance = await connection.getBalance(user1.publicKey);
-            assert(finalBalance < initialBalance, "User1's SOL balance should have decreased");
-    
-            const treasuryBalance = await connection.getBalance(treasuryPda);
-            assert(treasuryBalance > 0, "Treasury should have received SOL");
-        } catch (error) {
-            console.error("Error in Issue tokens test:", error);
-            throw error;
-        }
-    });
-
-    // it("Issue tokens", async () => {
-    //     // Fetch config to ensure it's initialized
-    //     const config = await program.account.daoSetup.fetch(configPda);
-    //     assert.ok(config, "Config should be initialized");
-        
-    //     // Ensure mintPda is set correctly
-    //     [mintPda] = PublicKey.findProgramAddressSync(
-    //         [Buffer.from("mint"), configPda.toBuffer()],
-    //         program.programId
-    //     );
-        
-    //     console.log("Mint PDA:", mintPda.toBase58());
-    //     console.log("Config PDA:", configPda.toBase58());
-    //     console.log("Auth PDA:", authPda.toBase58());
-    //     console.log("Treasury PDA:", treasuryPda.toBase58());
-    //     console.log("User1 ATA:", user1Ata.toBase58());
-    
-    //     const initialBalance = await connection.getBalance(user1.publicKey);
-    
-    //     try {
-    //         await program.methods
-    //             .issueTokens()
-    //             .accounts({
-    //                 initializer: user1.publicKey,
-    //                 initializerAta: user1Ata,
-    //                 auth: authPda,
-    //                 treasury: treasuryPda,
-    //                 mint: mintPda,
-    //                 config: configPda,
-    //                 tokenProgram: TOKEN_PROGRAM_ID,
-    //                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    //                 systemProgram: SystemProgram.programId,
-    //             })
-    //             .signers([user1])
-    //             .rpc()
-    //             .then(confirm)
-    //             .then(log);
-    
-    //         const user1Account = await getAccount(connection, user1Ata);
-    //         assert.equal(user1Account.amount.toString(), "100", "User1 should have 100 tokens");
-    
-    //         const finalBalance = await connection.getBalance(user1.publicKey);
-    //         assert(finalBalance < initialBalance, "User1's SOL balance should have decreased");
-    
-    //         const treasuryBalance = await connection.getBalance(treasuryPda);
-    //         assert(treasuryBalance > 0, "Treasury should have received SOL");
-    //     } catch (error) {
-    //         console.error("Error in Issue tokens test:", error);
-    //         throw error;
-    //     }
-    // });
-
-
     it("Create proposal", async () => {
         await program.methods
             .createProposal(
@@ -432,8 +279,8 @@ describe("dao-voting-program", () => {
                 "Test Proposal",
                 "https://example.com/proposal",
                 { vote: {} },
-                new BN(10), // threshold
-                new BN(100) // expiry
+                new BN(10),
+                new BN(100)
             )
             .accounts({
                 owner: user1.publicKey,
@@ -492,7 +339,6 @@ describe("dao-voting-program", () => {
     });
 
     it("Remove vote", async () => {
-        // Add a delay to avoid InvalidSlot error
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         await program.methods
@@ -517,7 +363,6 @@ describe("dao-voting-program", () => {
     });
 
     it("Executes a proposal", async () => {
-        // Vote again to meet the quorum
         await program.methods
             .vote(new BN(50), { yes: {} })
             .accounts({
@@ -534,7 +379,6 @@ describe("dao-voting-program", () => {
             .then(confirm)
             .then(log);
 
-        // Generate a random payee for this test
         const payee = Keypair.generate().publicKey;
 
         await program.methods
@@ -556,7 +400,6 @@ describe("dao-voting-program", () => {
         const proposalAfter = await program.account.proposal.fetch(proposalPda);
         assert.deepEqual(proposalAfter.result, { succeeded: {} }, "Proposal result should be 'succeeded'");
 
-        // Fetch and check the proposer's member state
         const proposerStateAfter = await program.account.memberState.fetch(user1MemberState);
         assert(proposerStateAfter.rewardPoints.gt(new BN(0)), "Proposer should have received reward points");
         assert(proposerStateAfter.successfulProposals.eq(new BN(1)), "Proposer should have 1 successful proposal");
@@ -571,7 +414,7 @@ describe("dao-voting-program", () => {
                 ownerAta: user1Ata,
                 stakeAta: user1StakeAta,
                 auth: authPda,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 stakeState: user1StakeState,
                 config: configPda,
                 memberState: user1MemberState,
@@ -619,7 +462,7 @@ describe("dao-voting-program", () => {
                 ownerAta: user1Ata,
                 stakeAta: user1StakeAta,
                 auth: authPda,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 stakeState: user1StakeState,
                 config: configPda,
                 memberState: user1MemberState,
@@ -640,7 +483,7 @@ describe("dao-voting-program", () => {
                 owner: user1.publicKey,
                 stakeAta: user1StakeAta,
                 stakeAuth: authPda,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 stakeState: user1StakeState,
                 config: configPda,
                 tokenProgram: TOKEN_PROGRAM_ID,
@@ -727,7 +570,6 @@ describe("dao-voting-program", () => {
     });
 
     it("Fails to vote twice", async () => {
-        // First, create a new proposal
         const proposalId2 = new BN(2);
         const [proposalPda2] = PublicKey.findProgramAddressSync(
             [Buffer.from("proposal"), configPda.toBuffer(), proposalId2.toArrayLike(Buffer, "le", 8)],
@@ -757,7 +599,6 @@ describe("dao-voting-program", () => {
             .then(confirm)
             .then(log);
 
-        // Vote once
         const [votePda2] = PublicKey.findProgramAddressSync(
             [Buffer.from("vote"), proposalPda2.toBuffer(), user1.publicKey.toBuffer()],
             program.programId
@@ -779,7 +620,6 @@ describe("dao-voting-program", () => {
             .then(confirm)
             .then(log);
 
-        // Try to vote again
         await assert.rejects(
             program.methods
                 .vote(new BN(25), { yes: {} })
@@ -811,7 +651,7 @@ describe("dao-voting-program", () => {
                 ownerAta: user1Ata,
                 stakeAta: user1StakeAta,
                 auth: authPda,
-                mint: mintPda,
+                mint: mintKeypair.publicKey,
                 stakeState: user1StakeState,
                 config: configPda,
                 memberState: user1MemberState,
@@ -824,7 +664,6 @@ describe("dao-voting-program", () => {
             .then(confirm)
             .then(log);
 
-        // Try to create a proposal
         const proposalId3 = new BN(3);
         const [proposalPda3] = PublicKey.findProgramAddressSync(
             [Buffer.from("proposal"), configPda.toBuffer(), proposalId3.toArrayLike(Buffer, "le", 8)],

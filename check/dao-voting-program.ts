@@ -24,7 +24,7 @@ import assert from "assert";
 describe("dao-voting-program", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const provider = anchor.getProvider();
+  const provider = anchor.getProvider() as anchor.AnchorProvider;;
   const connection = provider.connection;
   const program = anchor.workspace.DaoVotingProgram as Program<DaoVotingProgram>;
   const tokenProgram = TOKEN_2022_PROGRAM_ID;
